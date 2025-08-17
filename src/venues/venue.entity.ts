@@ -5,7 +5,7 @@ import { Booking } from '../bookings/booking.entity';
 export class Venue {
   @PrimaryGeneratedColumn('uuid') id: string;
 
-  @Column() name: string;
+  @Column({ unique: true }) name: string;
 
   @Column('double precision', { nullable: true }) lat?: number;
   @Column('double precision', { nullable: true }) lng?: number;

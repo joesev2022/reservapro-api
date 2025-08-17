@@ -5,5 +5,5 @@ import { Venue } from './venue.entity';
 @Injectable()
 export class VenuesService {
   constructor(@InjectRepository(Venue) private repo: Repository<Venue>) {}
-  findAll() { return this.repo.find() }
+  findAll() { return this.repo.find({ order: { name: 'ASC' } }); }
 }

@@ -3,12 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { Booking } from './booking.entity';
 import { Venue } from '../venues/venue.entity';
+import { BookingsGateway } from './bookings.gateway';
 
 @Injectable()
 export class BookingsService {
   constructor(
     @InjectRepository(Booking) private readonly repo: Repository<Booking>,
     @InjectRepository(Venue) private readonly venues: Repository<Venue>,
+    private readonly ws: BookingsGateway,
   ) {}
 
   async list(params: { from?: Date; to?: Date; venueId?: string }) {
@@ -38,8 +40,9 @@ export class BookingsService {
 
     await this.ensureNoOverlap(venue.id, input.startAt, input.endAt);
 
-    const booking = this.repo.create({ venue, startAt: input.startAt, endAt: input.endAt, title: input.title });
-    return this.repo.save(booking);
+    const saved = await this.repo.save(this.repo.create({ venue, startAt: input.startAt, endAt: input.endAt, title: input.title }));
+    this.ws.emitCreated({ id: saved.id, venueId: venue.id, startAt: saved.startAt, endAt: saved.endAt, title: saved.title });
+    return saved;
   }
 
   async update(id: string, patch: { startAt?: Date; endAt?: Date; title?: string }) {
@@ -54,13 +57,16 @@ export class BookingsService {
 
     b.startAt = start; b.endAt = end;
     if (patch.title !== undefined) b.title = patch.title;
-    return this.repo.save(b);
+    const res = await this.repo.save(b);
+    this.ws.emitUpdated({ id: res.id, venueId: res.venue.id, startAt: res.startAt, endAt: res.endAt, title: res.title });
+    return res;
   }
 
   async remove(id: string) {
     const b = await this.repo.findOne({ where: { id } });
     if (!b) throw new NotFoundException();
     await this.repo.remove(b);
+    this.ws.emitDeleted({ id, venueId: b.venue.id });
     return { ok: true };
   }
 

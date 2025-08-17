@@ -14,7 +14,7 @@ async function bootstrap() {
   const port = Number(cfg.get('PORT') ?? 3001);
 
   await app.init();
-  /* await seed(app); */
+  await seed(app);
 
   /* // en main.ts, después de await app.init()
   const adapter = app.getHttpAdapter();
@@ -60,6 +60,8 @@ async function bootstrap() {
 
 async function seed(app: any) {
   try {
+
+    // --- Users Demo ---
     const repo = app.get(getRepositoryToken(User));
     const count = await repo.count();
     if (count === 0) {
@@ -80,11 +82,25 @@ async function seed(app: any) {
       console.log('Seed users created.');
     }
 
+    // --- Venues Demo ---
     const venueRepo = app.get(getRepositoryToken(Venue));
-    if (await venueRepo.count() === 0) {
-      await venueRepo.save(venueRepo.create({ name: 'Cancha Central', lat: -12.05, lng: -77.04 }));
-      console.log('Seed venues created.');
-    }
+    const venues: Array<Partial<Venue>> = [
+      { name: 'Local Centro',      lat: -12.0464, lng: -77.0428 },
+      { name: 'Miraflores Parque', lat: -12.1211, lng: -77.0297 },
+      { name: 'San Isidro Business', lat: -12.0970, lng: -77.0370 },
+      { name: 'Barranco Bohemio',  lat: -12.1483, lng: -77.0209 },
+      { name: 'Surco Monterrico',  lat: -12.1416, lng: -76.9998 },
+      { name: 'La Molina',         lat: -12.0870, lng: -76.9380 },
+      { name: 'San Miguel Plaza',  lat: -12.0735, lng: -77.0932 },
+      { name: 'Callao Costa',      lat: -12.0520, lng: -77.1180 },
+      { name: 'Los Olivos Norte',  lat: -11.9902, lng: -77.0610 },
+      { name: 'SJL Canto Rey',     lat: -12.0240, lng: -77.0050 },
+      { name: 'Chorrillos Costa',  lat: -12.1722, lng: -77.0241 },
+      { name: 'Pueblo Libre',      lat: -12.0730, lng: -77.0670 },
+    ];
+    // upsert por nombre → no duplica si ya existen
+    await venueRepo.upsert(venues, ['name']);
+    console.log('✔ Seed: venues');
   } catch (e) {
     console.warn('Seed skipped:', e?.message ?? e);
   }
