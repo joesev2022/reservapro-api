@@ -1,14 +1,20 @@
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Column, Entity, ManyToOne, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Venue } from '../venues/venue.entity';
+import { User } from 'src/users/user.entity';
 
 export type BookingStatus = 'pending' | 'paid' | 'cancelled';
-
+@Index('idx_booking_start_at', ['startAt'])
+@Index('idx_booking_venue', ['venue'])
 @Entity()
 export class Booking {
   @PrimaryGeneratedColumn('uuid') id: string;
 
   @ManyToOne(() => Venue, v => v.bookings, { eager: true, onDelete: 'CASCADE' })
   venue: Venue;
+
+    // 👇 dueño de la reserva (para permisos)
+  @ManyToOne(() => User, { eager: true, onDelete: 'SET NULL', nullable: true })
+  user: User | null;
 
   @Column({ type: 'timestamptz' }) startAt: Date; // UTC
   @Column({ type: 'timestamptz' }) endAt: Date;   // UTC

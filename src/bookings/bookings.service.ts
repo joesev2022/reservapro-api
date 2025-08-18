@@ -1,9 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { Booking } from './booking.entity';
 import { Venue } from '../venues/venue.entity';
 import { BookingsGateway } from './bookings.gateway';
+import { JwtUser } from 'src/auth/current-user.decorator';
 
 @Injectable()
 export class BookingsService {
@@ -13,12 +14,12 @@ export class BookingsService {
     private readonly ws: BookingsGateway,
   ) {}
 
-  async list(params: { from?: Date; to?: Date; venueId?: string }) {
-    const where: any = {};
-    if (params.venueId) where.venue = { id: params.venueId };
+  async list(user: JwtUser, params: { from?: Date; to?: Date; venueId?: string }) {
+    /* const where: any = {};
+    if (params.venueId) where.venue = { id: params.venueId }; */
 
     // Si hay rango, devolvemos reservas que intersecten el rango
-    if (params.from && params.to) {
+    /* if (params.from && params.to) {
       // Intersección: !(end <= from || start >= to)
       return this.repo.createQueryBuilder('b')
         .leftJoinAndSelect('b.venue','v')
@@ -26,12 +27,26 @@ export class BookingsService {
         .andWhere('NOT (b."endAt" <= :from OR b."startAt" >= :to)', { from: params.from, to: params.to })
         .orderBy('b."startAt"', 'ASC')
         .getMany();
+    } */
+
+    /* return this.repo.find({ where, order: { startAt: 'ASC' } }); */
+    const qb = this.repo.createQueryBuilder('b')
+      .leftJoinAndSelect('b.venue', 'v')   // venue eager, pero por si acaso
+      .leftJoinAndSelect('b.user', 'u')    // necesitamos saber el dueño
+      .orderBy('b."startAt"', 'ASC');
+
+    if (params.venueId) qb.andWhere('v.id = :venueId', { venueId: params.venueId });
+    if (params.from && params.to) {
+      qb.andWhere('NOT (b."endAt" <= :from OR b."startAt" >= :to)', { from: params.from, to: params.to });
     }
 
-    return this.repo.find({ where, order: { startAt: 'ASC' } });
+    // 👇 clientes solo ven sus reservas
+    if (user.role === 'cliente') qb.andWhere('u.id = :uid', { uid: user.userId });
+
+    return qb.getMany();
   }
 
-  async create(input: { venueId: string; startAt: Date; endAt: Date; title?: string }) {
+  async create(user: JwtUser, input: { venueId: string; startAt: Date; endAt: Date; title?: string }) {
     if (input.endAt <= input.startAt) {
       throw new BadRequestException('Rango inválido');
     }
@@ -40,14 +55,19 @@ export class BookingsService {
 
     await this.ensureNoOverlap(venue.id, input.startAt, input.endAt);
 
-    const saved = await this.repo.save(this.repo.create({ venue, startAt: input.startAt, endAt: input.endAt, title: input.title }));
-    this.ws.emitCreated({ id: saved.id, venueId: venue.id, startAt: saved.startAt, endAt: saved.endAt, title: saved.title });
+    const saved = await this.repo.save(this.repo.create({ venue, user: { id: user.userId } as any, startAt: input.startAt, endAt: input.endAt, title: input.title }));
+    this.ws.emitCreated({ id: saved.id, venueId: venue.id, userId: user.userId, startAt: saved.startAt, endAt: saved.endAt, title: saved.title });
     return saved;
   }
 
-  async update(id: string, patch: { startAt?: Date; endAt?: Date; title?: string }) {
-    const b = await this.repo.findOne({ where: { id } });
+  async update(user: JwtUser, id: string, patch: { startAt?: Date; endAt?: Date; title?: string }) {
+    const b = await this.repo.findOne({ where: { id }, relations: ['venue', 'user'] });
     if (!b) throw new NotFoundException('Reserva no existe');
+
+    // 👇 clientes solo pueden editar sus reservas
+    if (user.role === 'cliente' && b.user?.id !== user.userId) {
+      throw new ForbiddenException('No puedes modificar esta reserva');
+    }
 
     const start = patch.startAt ?? b.startAt;
     const end   = patch.endAt   ?? b.endAt;
@@ -62,9 +82,15 @@ export class BookingsService {
     return res;
   }
 
-  async remove(id: string) {
-    const b = await this.repo.findOne({ where: { id } });
-    if (!b) throw new NotFoundException();
+  async remove(user: JwtUser, id: string) {
+    const b = await this.repo.findOne({ where: { id }, relations: ['venue', 'user'] });
+    if (!b) throw new NotFoundException('Reserva no existe');
+
+    // 👇 clientes solo pueden borrar sus reservas
+    if (user.role === 'cliente' && b.user?.id !== user.userId) {
+      throw new ForbiddenException('No puedes eliminar esta reserva');
+    }
+
     await this.repo.remove(b);
     this.ws.emitDeleted({ id, venueId: b.venue.id });
     return { ok: true };
