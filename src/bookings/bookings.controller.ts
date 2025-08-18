@@ -37,6 +37,7 @@ export class BookingsController {
       venueId: dto.venueId,
       startAt: new Date(dto.startAt),
       endAt: new Date(dto.endAt),
+      title: dto.title
     });
   }
 
@@ -46,6 +47,7 @@ export class BookingsController {
     return this.svc.update(user, id, {
       startAt: dto.startAt ? new Date(dto.startAt) : undefined,
       endAt:   dto.endAt   ? new Date(dto.endAt)   : undefined,
+      title:   dto.title,
       // title opcional si lo agregas
     });
   }

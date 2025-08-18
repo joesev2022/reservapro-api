@@ -5,6 +5,7 @@ import { Booking } from './booking.entity';
 import { Venue } from '../venues/venue.entity';
 import { BookingsGateway } from './bookings.gateway';
 import { JwtUser } from 'src/auth/current-user.decorator';
+import { title } from 'process';
 
 @Injectable()
 export class BookingsService {
@@ -47,6 +48,7 @@ export class BookingsService {
   }
 
   async create(user: JwtUser, input: { venueId: string; startAt: Date; endAt: Date; title?: string }) {
+    console.log('input title', input.title);
     if (input.endAt <= input.startAt) {
       throw new BadRequestException('Rango inválido');
     }
@@ -61,6 +63,7 @@ export class BookingsService {
   }
 
   async update(user: JwtUser, id: string, patch: { startAt?: Date; endAt?: Date; title?: string }) {
+    console.log('patch title', patch.title);
     const b = await this.repo.findOne({ where: { id }, relations: ['venue', 'user'] });
     if (!b) throw new NotFoundException('Reserva no existe');
 

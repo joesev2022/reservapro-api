@@ -4,4 +4,6 @@ export class UpdateBookingDto {
   @IsOptional() @IsISO8601() startAt?: string;
   @IsOptional() @IsISO8601() endAt?: string;
   // status y title si luego quieres mover/cancelar/renombrar
+  // title opcional si lo agregas
+  @IsOptional() title?: string;
 }

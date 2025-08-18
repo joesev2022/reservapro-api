@@ -7,7 +7,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(cfg: ConfigService) {
     const secret = cfg.get<string>('JWT_SECRET', 'devsecret');
-    console.log('[JWT] usando secreto:', secret);
+    /* console.log('[JWT] usando secreto:', secret); */
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -16,7 +16,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
   async validate(payload: any) {
     // payload: { sub: userId, email, role }
-    console.log('[JWT] payload:', payload);
+    /* console.log('[JWT] payload:', payload); */
     return { userId: payload.sub, email: payload.email, role: payload.role };
   }
 }
