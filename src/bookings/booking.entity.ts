@@ -21,6 +21,9 @@ export class Booking {
 
   @Column({ type: 'text', default: 'pending' }) status: BookingStatus;
 
+  @Column('numeric', { precision: 10, scale: 2, default: 20 }) amount: string;
+  @Column({ default: 'PEN' }) currency: string;
+
   @Column({ nullable: true }) title?: string; // opcional (mostrar en calendario)
 
   @CreateDateColumn({ type: 'timestamptz' }) createdAt: Date;
