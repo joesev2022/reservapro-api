@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from '../auth/roles.decorator';
@@ -27,5 +27,11 @@ export class PaymentsController {
       return this.svc.verifyByPreferenceId(prefId);
     }
     return { approved: false, reason: 'No payment_id' };
+  }
+
+  @Get('verify-external')
+  @Roles('admin','trabajador','cliente')
+  verifyByExternal(@Query('bookingId') bookingId: string) {
+    return this.svc.verifyByExternalReference(bookingId)
   }
 }

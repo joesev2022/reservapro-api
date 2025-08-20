@@ -7,6 +7,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { CurrentUser } from 'src/auth/current-user.decorator';
 import type { JwtUser } from 'src/auth/current-user.decorator';
+import { stat } from 'fs';
 
 @Controller('bookings')
 @UseGuards(AuthGuard('jwt'), RolesGuard)

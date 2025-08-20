@@ -44,7 +44,9 @@ export class BookingsService {
     // 👇 clientes solo ven sus reservas
     if (user.role === 'cliente') qb.andWhere('u.id = :uid', { uid: user.userId });
 
-    return qb.getMany();
+    const bookings = await qb.getMany();
+    
+    return bookings;
   }
 
   async create(user: JwtUser, input: { venueId: string; startAt: Date; endAt: Date; title?: string }) {

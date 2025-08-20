@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, Logger } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Booking } from '../bookings/booking.entity';
+import { BookingsGateway } from 'src/bookings/bookings.gateway';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
 @Injectable()
@@ -11,7 +12,7 @@ export class PaymentsService {
   private pref = new Preference(this.mp);
   private payment = new Payment(this.mp);
 
-  constructor(@InjectRepository(Booking) private readonly repo: Repository<Booking>) {
+  constructor(@InjectRepository(Booking) private readonly repo: Repository<Booking>, private readonly ws: BookingsGateway,) {
     const accessToken = (process.env.MP_ACCESS_TOKEN || '').trim();
     if (!accessToken) {
       this.logger.error('MP_ACCESS_TOKEN no está definido');
@@ -61,7 +62,7 @@ export class PaymentsService {
         items: [
           {
             id: `booking-${b.id}`,                                  // 👈 requerido por los tipos del SDK
-            title: b.title || `Reserva - ${b.venue.name}`,
+            title: b.title || `Reserva - ${b.venue.name} - ${b.title}`,
             quantity: 1,
             unit_price: amount,
             /* currency_id: prefCurrency,  */                                    // 👈 number
@@ -84,7 +85,7 @@ export class PaymentsService {
     if (useAutoReturn) body.auto_return = 'approved';
 
     // LOG de depuración para ver exactamente qué se envía
-    this.logger.log(
+    /* this.logger.log(
       `MP preference payload: ${JSON.stringify({
         items: body.items,
         currency_id: body.currency_id,
@@ -92,7 +93,7 @@ export class PaymentsService {
         auto_return: body.auto_return,
         payer: body.payer,
       })}`,
-    );
+    ); */
 
     // Opcional: log para validar las URLs que se enviarán
     this.logger.log(`MP pref back_urls: ${JSON.stringify(body.back_urls)} auto_return=${useAutoReturn ? 'approved' : 'OFF'}`);
@@ -110,10 +111,51 @@ export class PaymentsService {
     const approved = p.status === 'approved';
     const bookingId = (p.metadata as any)?.bookingId || p.external_reference;
 
+    this.logger.log(`MP payment payload: ${JSON.stringify(p)}`);
+    this.logger.log(`MP payment approved=${approved} bookingId=${bookingId}`);    
+
     if (approved && bookingId) {
+      console.log('actualizando reserva de pending a paid');
       await this.repo.update(bookingId, { status: 'paid' as any });
+      const saved = await this.repo.findOne({ where: { id: bookingId }, relations: ['venue'] })
+      if (saved) {
+        // 🔊 avisa a todos los clientes conectados
+        this.ws.emitUpdated({
+          id: saved.id,
+          venueId: saved.venue.id,
+          title: saved.title,
+          startAt: saved.startAt,
+          endAt: saved.endAt,
+          status: saved.status, // 'paid'
+        })
+      }
     }
     return { approved, bookingId, raw: p };
+  }
+
+  async verifyByExternalReference(bookingId: string) {
+    // busca el último pago asociado a esa reserva
+    const res: any = await this.payment.search({
+      options: {
+        external_reference: bookingId,
+        sort: 'date_created',
+        criteria: 'desc',
+        limit: 1,
+      },
+    })
+
+    const p = res?.results?.[0]
+    const approved = p?.status === 'approved'
+    const paymentId = p?.id
+
+    if (approved) {
+      await this.repo.update(bookingId, { status: 'paid' as any })
+      // (opcional) emitir socket si tienes gateway
+      // const saved = await this.repo.findOne({ where: { id: bookingId }, relations: ['venue'] })
+      // if (saved) this.ws.emitUpdated({ id: saved.id, ... })
+    }
+
+    return { approved, paymentId, status: p?.status ?? 'unknown' }
   }
 
   // opcional: si recibes solo preference_id, busca el último pago asociado
